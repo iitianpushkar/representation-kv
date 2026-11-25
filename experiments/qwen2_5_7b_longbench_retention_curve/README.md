@@ -1,7 +1,7 @@
 # Qwen2.5-7B LongBench representation-change retention curve
 
 This is a **planned, unrun** experiment. It tests requested retention ratios
-of **100%, 70%, 50%, 30%, 10%, 5%, and 1%**, in that execution order. The
+of **100%, 70%, 50%, 30%, 20%, 10%, 5%, and 1%**, in that execution order. The
 100% point uses the same custom attention and cache path without dropping any
 entries. Ratios apply to every layer after Layer 1; Layer 1 always keeps all
 tokens. The current selector does not use a global adaptive budget. We save
@@ -66,7 +66,7 @@ HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 \
 ```
 
 The runner loads Qwen once and completes `r100`, `r070`, `r050`, `r030`,
-`r010`, `r005`, then `r001`. Each ratio resumes completed examples after an
+`r020`, `r010`, `r005`, then `r001`. Each ratio resumes completed examples after an
 interrupted job. Its output directory contains `config.json`, one prediction
 JSONL per task, `scores/<task>/<index>.npz`, and `scores.json`. The run root
 contains `run_config.json`, `baseline_check.json`, `curve_summary.csv`, and

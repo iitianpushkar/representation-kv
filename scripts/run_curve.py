@@ -18,7 +18,7 @@ from run_longbench import load_model_and_tokenizer, run_condition
 from score_longbench import score_condition
 
 
-DEFAULT_RATIOS = (1.0, 0.7, 0.5, 0.3, 0.1, 0.05, 0.01)
+DEFAULT_RATIOS = (1.0, 0.7, 0.5, 0.3, 0.2, 0.1, 0.05, 0.01)
 
 
 def ratio_name(ratio: float) -> str:

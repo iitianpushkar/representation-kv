@@ -49,7 +49,7 @@ official archive SHA-256 and row counts in `manifest.json`.
 Install a PyTorch wheel compatible with Rorqual's CUDA version if the default
 wheel is unsuitable. The [retention curve experiment guide](experiments/qwen2_5_7b_longbench_retention_curve/README.md)
 contains the login-node preflight, H100 smoke run, and single full-run command.
-The default curve runs **100%, 70%, 50%, 30%, 10%, 5%, 1%**, in that order.
+The default curve runs **100%, 70%, 50%, 30%, 20%, 10%, 5%, 1%**, in that order.
 `scripts/run_curve.py` loads Qwen once, resumes each condition independently,
 and writes a curve summary after each completed ratio. There is no committed
 Slurm job file.
