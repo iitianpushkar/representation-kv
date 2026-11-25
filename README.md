@@ -43,6 +43,9 @@ git clone https://github.com/THUDM/LongBench.git ../LongBench
 .venv/bin/python scripts/verify_small.py
 ```
 
+The staging command extracts the five selected JSONL tasks and records the
+official archive SHA-256 and row counts in `manifest.json`.
+
 Install a PyTorch wheel compatible with Rorqual's CUDA version if the default
 wheel is unsuitable. The [retention curve experiment guide](experiments/qwen2_5_7b_longbench_retention_curve/README.md)
 contains the login-node preflight, H100 smoke run, and single full-run command.

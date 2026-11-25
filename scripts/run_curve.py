@@ -178,12 +178,17 @@ def main():
         raise RuntimeError("The curve requires one CUDA GPU")
     output = Path(args.output_dir).expanduser().resolve()
     output.mkdir(parents=True, exist_ok=True)
+    manifest_path = Path(args.data_dir).expanduser().resolve() / "manifest.json"
+    dataset_manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else None
     run_config = {
         "model_path": str(Path(args.model_path).expanduser().resolve()),
         "code_revision": revision(Path(__file__).resolve().parents[1]),
         "longbench_code": str(Path(args.longbench_code).expanduser().resolve()),
         "longbench_revision": revision(Path(args.longbench_code).expanduser().resolve()),
         "data_dir": str(Path(args.data_dir).expanduser().resolve()),
+        "data_archive_sha256": (
+            dataset_manifest.get("archive_sha256") if dataset_manifest else None
+        ),
         "tasks": args.tasks, "ratios": args.ratios,
         "max_context": args.max_context, "max_new_tokens": args.max_new_tokens,
         "limit": args.limit,
