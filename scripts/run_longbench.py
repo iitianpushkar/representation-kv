@@ -13,12 +13,14 @@ from transformers import AutoTokenizer, Qwen2ForCausalLM
 from representation_kv.longbench import DEFAULT_TASKS, encode_prompt, records, task_configs
 from representation_kv.qwen import CompressedQwen, generate_full
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-path", required=True, help="Local Qwen2.5-7B-Instruct directory")
-    parser.add_argument("--longbench-code", required=True, help="Official LongBench v1 checkout")
-    parser.add_argument("--data-dir", required=True, help="Staged task JSONL directory")
+    parser.add_argument("--model-path", default=str(REPO_ROOT / "models/qwen2.5-7b-instruct"), help="Local Qwen2.5-7B-Instruct directory")
+    parser.add_argument("--longbench-code", default=str(REPO_ROOT / "third_party/LongBench"), help="Vendored LongBench v1 files")
+    parser.add_argument("--data-dir", default=str(REPO_ROOT / "datasets/longbench-v1"), help="Task JSONL directory")
     parser.add_argument("--output-dir", required=True, help="Unique directory for this condition")
     parser.add_argument("--mode", choices=("full", "compressed"), required=True)
     parser.add_argument("--ratio", type=float, default=1.0)

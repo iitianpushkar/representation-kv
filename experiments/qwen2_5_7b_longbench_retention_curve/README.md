@@ -13,7 +13,7 @@ can use the token score traces from this run.
 - Model: local `Qwen/Qwen2.5-7B-Instruct`, BF16, one GPU, batch size 1.
 - Data: LongBench v1, with Qasper, HotpotQA, 2WikiMultihopQA, GovReport, and
   PassageRetrieval-en by default. Prompts, generation lengths, and scoring
-  metrics come from the staged official LongBench checkout.
+  metrics come from the vendored official LongBench files in this repository.
 - Prompt: Qwen chat template, middle truncation to leave room for generation
   within the model's 32K position limit. Greedy decoding, no sampling.
 - Selection: cosine distance to the same token's representation at its last
@@ -28,16 +28,13 @@ can use the token score traces from this run.
 
 ## Cluster commands
 
-From the repository checkout on a networked login node, stage the model and
-LongBench files as described in the [root README](../../README.md#rorqual-setup).
-Then check the staged inputs without loading a GPU model or writing results:
+From the repository checkout on a networked login node, download the model as
+described in the [root README](../../README.md#rorqual-setup). The LongBench
+files are already present. Check the inputs without loading a GPU model or
+writing results:
 
 ```bash
 .venv/bin/python scripts/run_curve.py \
-  --model-path ../models/qwen2.5-7b-instruct \
-  --longbench-code ../LongBench \
-  --data-dir ../datasets/longbench-v1 \
-  --output-dir ../results/qwen2_5_7b_longbench_retention_curve \
   --verify-only
 ```
 
@@ -47,10 +44,7 @@ output directory:
 ```bash
 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 \
 .venv/bin/python -u scripts/run_curve.py \
-  --model-path ../models/qwen2.5-7b-instruct \
-  --longbench-code ../LongBench \
-  --data-dir ../datasets/longbench-v1 \
-  --output-dir ../results/qwen2_5_7b_longbench_smoke \
+  --output-dir results/qwen2_5_7b_longbench_smoke \
   --tasks hotpotqa --limit 2 --max-context 4096 --max-new-tokens 16
 ```
 
@@ -58,11 +52,7 @@ Then put this **one command** in your H100 job for the full curve:
 
 ```bash
 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 \
-.venv/bin/python -u scripts/run_curve.py \
-  --model-path ../models/qwen2.5-7b-instruct \
-  --longbench-code ../LongBench \
-  --data-dir ../datasets/longbench-v1 \
-  --output-dir ../results/qwen2_5_7b_longbench_retention_curve
+.venv/bin/python -u scripts/run_curve.py
 ```
 
 The runner loads Qwen once and completes `r100`, `r070`, `r050`, `r030`,

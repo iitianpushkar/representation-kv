@@ -26,10 +26,11 @@ cache. No recent-window or sink-token protection is applied in this version.
 
 ## Rorqual setup
 
-Use a networked login or transfer node to stage dependencies. The experiment
-is launched by one Python script inside a GPU allocation; create your own
-Rorqual job around that command. The existing EMO benchmark repo also stages
-model/data before GPU runs and documents commands in each experiment folder.
+The five selected LongBench task files and the official prompt and metric files
+are committed in this repository. On a networked login or transfer node,
+download the Qwen checkpoint into this checkout. The experiment is launched
+by one Python script inside a GPU allocation; create your own Rorqual job
+around that command.
 
 ```bash
 git clone https://github.com/iitianpushkar/representation-kv.git representation-kv
@@ -37,14 +38,17 @@ cd representation-kv
 python3 -m venv .venv
 .venv/bin/pip install --upgrade pip
 .venv/bin/pip install -e .
-git clone https://github.com/THUDM/LongBench.git ../LongBench
-.venv/bin/hf download Qwen/Qwen2.5-7B-Instruct --local-dir ../models/qwen2.5-7b-instruct
-.venv/bin/python scripts/stage_longbench.py --data-dir ../datasets/longbench-v1
+.venv/bin/hf download Qwen/Qwen2.5-7B-Instruct --local-dir models/qwen2.5-7b-instruct
 .venv/bin/python scripts/verify_small.py
+.venv/bin/python scripts/run_curve.py --verify-only
 ```
 
-The staging command extracts the five selected JSONL tasks and records the
-official archive SHA-256 and row counts in `manifest.json`.
+The checkpoint is downloaded inside `models/`, which is ignored by Git because
+it is much larger than the source and data files. If the data must be restaged,
+`scripts/stage_longbench.py` downloads into `datasets/longbench-v1/` by default.
+The committed `manifest.json` records the archive SHA-256 and task row counts.
+The vendored LongBench files are under `third_party/LongBench/`, with their
+upstream revision and license.
 
 Install a PyTorch wheel compatible with Rorqual's CUDA version if the default
 wheel is unsuitable. The [retention curve experiment guide](experiments/qwen2_5_7b_longbench_retention_curve/README.md)
@@ -59,7 +63,7 @@ Slurm job file.
 Each task has a JSONL file with predictions, references, token counts,
 prefill/decode time, KV bytes, metadata bytes, layer retention counts, and
 peak allocated GPU bytes. `scores.json` uses the official LongBench v1 task
-metrics from the staged checkout. The default tasks are Qasper, HotpotQA,
+metrics from the vendored files. The default tasks are Qasper, HotpotQA,
 2WikiMultihopQA, GovReport, and PassageRetrieval-en.
 
 Each prediction also records `layer_retention_prefill`,

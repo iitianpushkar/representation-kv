@@ -14,6 +14,8 @@ from huggingface_hub import hf_hub_download
 
 from representation_kv.longbench import DEFAULT_TASKS
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 def validate_task(path: Path) -> int:
     count = 0
@@ -30,7 +32,7 @@ def validate_task(path: Path) -> int:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-dir", required=True)
+    parser.add_argument("--data-dir", default=str(REPO_ROOT / "datasets/longbench-v1"))
     parser.add_argument("--tasks", nargs="+", default=list(DEFAULT_TASKS), choices=DEFAULT_TASKS)
     parser.add_argument("--revision", default="main", help="Hugging Face dataset commit or branch")
     parser.add_argument("--hf-cache", default=None)

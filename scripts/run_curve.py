@@ -19,6 +19,7 @@ from score_longbench import score_condition
 
 
 DEFAULT_RATIOS = (1.0, 0.7, 0.5, 0.3, 0.2, 0.1, 0.05, 0.01)
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def ratio_name(ratio: float) -> str:
@@ -30,10 +31,10 @@ def ratio_name(ratio: float) -> str:
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-path", required=True)
-    parser.add_argument("--longbench-code", required=True)
-    parser.add_argument("--data-dir", required=True)
-    parser.add_argument("--output-dir", required=True,
+    parser.add_argument("--model-path", default=str(REPO_ROOT / "models/qwen2.5-7b-instruct"))
+    parser.add_argument("--longbench-code", default=str(REPO_ROOT / "third_party/LongBench"))
+    parser.add_argument("--data-dir", default=str(REPO_ROOT / "datasets/longbench-v1"))
+    parser.add_argument("--output-dir", default=str(REPO_ROOT / "results/qwen2_5_7b_longbench_retention_curve"),
                         help="Unique directory for the entire curve")
     parser.add_argument("--tasks", nargs="+", default=list(DEFAULT_TASKS), choices=DEFAULT_TASKS)
     parser.add_argument("--ratios", nargs="+", type=float, default=list(DEFAULT_RATIOS))
@@ -96,6 +97,12 @@ def revision(path: Path) -> str | None:
         capture_output=True, text=True, check=False,
     )
     return result.stdout.strip() if result.returncode == 0 else None
+
+
+def longbench_revision(path: Path) -> str | None:
+    root = official_root(path)
+    vendored_revision = root.parent / "REVISION"
+    return vendored_revision.read_text().strip() if vendored_revision.exists() else revision(root)
 
 
 def write_summary(root: Path, names: list[str], tasks: list[str]):
@@ -184,7 +191,7 @@ def main():
         "model_path": str(Path(args.model_path).expanduser().resolve()),
         "code_revision": revision(Path(__file__).resolve().parents[1]),
         "longbench_code": str(Path(args.longbench_code).expanduser().resolve()),
-        "longbench_revision": revision(Path(args.longbench_code).expanduser().resolve()),
+        "longbench_revision": longbench_revision(Path(args.longbench_code)),
         "data_dir": str(Path(args.data_dir).expanduser().resolve()),
         "data_archive_sha256": (
             dataset_manifest.get("archive_sha256") if dataset_manifest else None

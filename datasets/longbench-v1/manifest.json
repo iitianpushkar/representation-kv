@@ -1,0 +1,13 @@
+{
+  "source": "zai-org/LongBench",
+  "archive": "data.zip",
+  "requested_revision": "main",
+  "archive_sha256": "cb45b11a4133c6bc1d6a44b0f8e701335ff1e543195db1103472e575857f7f64",
+  "tasks": {
+    "qasper": 200,
+    "hotpotqa": 200,
+    "2wikimqa": 200,
+    "gov_report": 200,
+    "passage_retrieval_en": 200
+  }
+}

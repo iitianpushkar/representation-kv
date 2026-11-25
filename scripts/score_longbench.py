@@ -7,6 +7,8 @@ from pathlib import Path
 
 from representation_kv.longbench import DEFAULT_TASKS, official_metric
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 def score_condition(longbench_code: str, output_dir: str | Path, tasks):
     output = Path(output_dir)
@@ -31,7 +33,7 @@ def score_condition(longbench_code: str, output_dir: str | Path, tasks):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--longbench-code", required=True)
+    parser.add_argument("--longbench-code", default=str(REPO_ROOT / "third_party/LongBench"))
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--tasks", nargs="+", default=list(DEFAULT_TASKS), choices=DEFAULT_TASKS)
     args = parser.parse_args()
