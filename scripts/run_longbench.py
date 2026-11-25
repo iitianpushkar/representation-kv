@@ -21,7 +21,7 @@ def parse_args():
     parser.add_argument("--model-path", default=str(REPO_ROOT / "models/qwen2.5-7b-instruct"), help="Local Qwen2.5-7B-Instruct directory")
     parser.add_argument("--longbench-code", default=str(REPO_ROOT / "third_party/LongBench"), help="Vendored LongBench v1 files")
     parser.add_argument("--data-dir", default=str(REPO_ROOT / "datasets/longbench-v1"), help="Task JSONL directory")
-    parser.add_argument("--output-dir", required=True, help="Unique directory for this condition")
+    parser.add_argument("--output-dir", required=True, help="Directory for this condition; existing examples are skipped")
     parser.add_argument("--mode", choices=("full", "compressed"), required=True)
     parser.add_argument("--ratio", type=float, default=1.0)
     parser.add_argument("--tasks", nargs="+", default=list(DEFAULT_TASKS), choices=DEFAULT_TASKS)
@@ -29,8 +29,6 @@ def parse_args():
     parser.add_argument("--max-new-tokens", type=int, default=None,
                         help="Override LongBench task default; useful for smoke tests")
     parser.add_argument("--limit", type=int, default=None, help="First N examples per task")
-    parser.add_argument("--resume", action="store_true",
-                        help="Skip completed examples in --output-dir")
     return parser.parse_args()
 
 
@@ -69,14 +67,14 @@ def run_condition(args, model=None, tokenizer=None):
             raise ValueError("max-context must exceed the task generation length")
         target = output / f"{task}.jsonl"
         completed = set()
-        if args.resume and target.exists():
+        if target.exists():
             with target.open(encoding="utf-8") as stream:
                 completed = {json.loads(line)["index"] for line in stream if line.strip()}
             if compressor is not None:
                 missing = [i for i in completed if not (output / "scores" / task / f"{i:06d}.npz").exists()]
                 if missing:
                     raise RuntimeError(f"Missing score traces for completed {task} rows: {missing[:10]}")
-        with target.open("a" if args.resume else "w", encoding="utf-8") as stream:
+        with target.open("a", encoding="utf-8") as stream:
             for index, item in records(args.data_dir, task):
                 if args.limit is not None and index >= args.limit:
                     break

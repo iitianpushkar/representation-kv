@@ -40,8 +40,6 @@ def parse_args():
     parser.add_argument("--max-context", type=int, default=32768)
     parser.add_argument("--max-new-tokens", type=int, default=None)
     parser.add_argument("--limit", type=int, default=None)
-    parser.add_argument("--resume", action="store_true",
-                        help="Continue an interrupted run in --output-dir")
     parser.add_argument("--verify-only", action="store_true")
     return parser.parse_args()
 
@@ -90,21 +88,6 @@ def verify_inputs(args):
     print("Ratios:", ", ".join(names))
     print("Model:", model_path)
     return names
-
-
-def choose_output_directory(requested: Path, resume: bool) -> Path:
-    if resume:
-        if not requested.is_dir():
-            raise FileNotFoundError(f"No run to resume: {requested}")
-        return requested
-    if not requested.exists() or (requested.is_dir() and not any(requested.iterdir())):
-        return requested
-    number = 2
-    while True:
-        candidate = requested.with_name(f"{requested.name}-run-{number}")
-        if not candidate.exists():
-            return candidate
-        number += 1
 
 
 def write_summary(root: Path, names: list[str], tasks: list[str]):
@@ -179,7 +162,7 @@ def main():
         return
     if not torch.cuda.is_available():
         raise RuntimeError("The curve requires one CUDA GPU")
-    output = choose_output_directory(Path(args.output_dir).expanduser().resolve(), args.resume)
+    output = Path(args.output_dir).expanduser().resolve()
     output.mkdir(parents=True, exist_ok=True)
     print(f"Results: {output}", flush=True)
     model, tokenizer = load_model_and_tokenizer(args.model_path)

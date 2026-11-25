@@ -55,11 +55,9 @@ wheel is unsuitable. The [retention curve experiment guide](experiments/qwen2_5_
 contains the login-node preflight, H100 smoke run, and single full-run command.
 The default curve runs **100%, 70%, 50%, 30%, 20%, 10%, 5%, 1%**, in that order.
 `scripts/run_curve.py` loads Qwen once and writes a curve summary after each
-completed ratio. A normal invocation starts a fresh run; if its output directory
-already contains files, the script uses a new `-run-2`, `-run-3`, and so on
-directory. Pass `--resume --output-dir PATH` to continue an interrupted run in
-that exact directory. There is no saved-config comparison and no committed
-Slurm job file.
+completed ratio. Run the same command again to resume in the same output
+directory; completed examples are skipped. There is no saved-config comparison
+and no committed Slurm job file.
 
 ## Outputs
 
