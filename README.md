@@ -32,7 +32,7 @@ EMO benchmark repo uses a local HF Python environment and stages model/data
 before GPU jobs; this repo follows the same separation.
 
 ```bash
-git clone <this-repository-url> representation-kv
+git clone https://github.com/iitianpushkar/representation-kv.git representation-kv
 cd representation-kv
 python3 -m venv .venv
 .venv/bin/pip install --upgrade pip
