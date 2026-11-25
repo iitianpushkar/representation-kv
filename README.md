@@ -26,10 +26,10 @@ cache. No recent-window or sink-token protection is applied in this version.
 
 ## Rorqual setup
 
-Use a networked login or transfer node to stage dependencies. Adapt module
-loads and Slurm account/partition to your Rorqual installation. The existing
-EMO benchmark repo uses a local HF Python environment and stages model/data
-before GPU jobs; this repo follows the same separation.
+Use a networked login or transfer node to stage dependencies. The experiment
+is launched by one Python script inside a GPU allocation; create your own
+Rorqual job around that command. The existing EMO benchmark repo also stages
+model/data before GPU runs and documents commands in each experiment folder.
 
 ```bash
 git clone https://github.com/iitianpushkar/representation-kv.git representation-kv
@@ -44,29 +44,12 @@ git clone https://github.com/THUDM/LongBench.git ../LongBench
 ```
 
 Install a PyTorch wheel compatible with Rorqual's CUDA version if the default
-wheel is unsuitable. Record `git rev-parse HEAD` in the LongBench checkout so
-the prompts and metrics are reproducible. The compute job uses staged local
-files and sets Hugging Face offline variables.
-
-Run a short GPU check before the full benchmark:
-
-```bash
-mkdir -p logs
-export REPO_DIR="$PWD" VENV_PYTHON="$PWD/.venv/bin/python"
-export MODEL_PATH="$(realpath ../models/qwen2.5-7b-instruct)"
-export LONGBENCH_CODE="$(realpath ../LongBench)"
-export DATA_DIR="$(realpath ../datasets/longbench-v1)"
-export MODE=compressed RATIO=1.0 OUTPUT_DIR="$PWD/results/smoke-100"
-export EXTRA_ARGS="--tasks hotpotqa --limit 2 --max-context 4096 --max-new-tokens 16"
-sbatch jobs/rorqual.sbatch
-```
-
-For full conditions, unset `EXTRA_ARGS` and use a unique `OUTPUT_DIR` per run.
-For example, submit a full baseline with `MODE=full RATIO=1.0`, then runs at
-`MODE=compressed` and `RATIO=1.0`, `0.7`, `0.5`, `0.3`, or `0.2`. Add Rorqual's
-required `--account`, `--partition`, or GPU constraint to `sbatch` as needed.
-The script prints progress per example and resumes completed examples when
-resubmitted with the same configuration and output directory.
+wheel is unsuitable. The [retention curve experiment guide](experiments/qwen2_5_7b_longbench_retention_curve/README.md)
+contains the login-node preflight, H100 smoke run, and single full-run command.
+The default curve runs **100%, 70%, 50%, 30%, 10%, 5%, 1%**, in that order.
+`scripts/run_curve.py` loads Qwen once, resumes each condition independently,
+and writes a curve summary after each completed ratio. There is no committed
+Slurm job file.
 
 ## Outputs
 
@@ -112,5 +95,5 @@ LongBench results.
   speedups even when fewer K/V entries are read. Compare measured latency.
 - Only unpadded batch size 1, greedy decoding, Qwen2.5, and full causal
   attention are supported. Beam search and sliding-window variants are not.
-- The 100% condition should match the unmodified Qwen baseline in generated
-  tokens. Run it before interpreting compressed results.
+- Before the curve, the runner checks that the custom 100% cache matches the
+  unmodified Qwen cache on one real LongBench example.

@@ -30,8 +30,18 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
-    args = parse_args()
+def load_model_and_tokenizer(model_path: str):
+    tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
+    model = Qwen2ForCausalLM.from_pretrained(
+        model_path, local_files_only=True, dtype=torch.bfloat16,
+        attn_implementation="sdpa",
+    ).to(torch.device("cuda:0")).eval()
+    if model.config.model_type != "qwen2" or model.config.num_hidden_layers != 28:
+        raise ValueError("Expected Qwen2.5-7B-Instruct (28 Qwen2 layers)")
+    return model, tokenizer
+
+
+def run_condition(args, model=None, tokenizer=None):
     if not torch.cuda.is_available():
         raise RuntimeError("The LongBench runner requires one CUDA GPU")
     if args.mode == "compressed" and not 0 < args.ratio <= 1:
@@ -59,13 +69,8 @@ def main():
     else:
         config_path.write_text(json.dumps(config, indent=2) + "\n")
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model_path, local_files_only=True)
-    model = Qwen2ForCausalLM.from_pretrained(
-        args.model_path, local_files_only=True, dtype=torch.bfloat16,
-        attn_implementation="sdpa",
-    ).to(device).eval()
-    if model.config.model_type != "qwen2" or model.config.num_hidden_layers != 28:
-        raise ValueError("Expected Qwen2.5-7B-Instruct (28 Qwen2 layers)")
+    if model is None or tokenizer is None:
+        model, tokenizer = load_model_and_tokenizer(args.model_path)
     max_context = min(args.max_context, model.config.max_position_embeddings)
     compressor = CompressedQwen(model, args.ratio) if args.mode == "compressed" else None
 
@@ -130,6 +135,10 @@ def main():
                 stream.flush()
                 print(f"{task} {index}: prompt={input_ids.shape[1]} generated={len(result.token_ids)} "
                       f"KV={result.kv_bytes_final / 2**20:.1f} MiB", flush=True)
+
+
+def main():
+    run_condition(parse_args())
 
 
 if __name__ == "__main__":
