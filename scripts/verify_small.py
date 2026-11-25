@@ -2,6 +2,9 @@
 """CPU smoke test using random Qwen2 weights; no model download required."""
 
 import torch
+import numpy as np
+from tempfile import TemporaryDirectory
+from pathlib import Path
 from transformers import Qwen2Config, Qwen2ForCausalLM
 from transformers.cache_utils import DynamicCache
 
@@ -57,6 +60,17 @@ def main():
     assert half.layer_counts_prefill == [9, 5, 5, 5], half.layer_counts_prefill
     assert half.layer_counts_final == [12, 6, 6, 6], half.layer_counts_final
     assert half.kv_bytes_prefill < full.kv_bytes_prefill
+    with TemporaryDirectory() as folder:
+        path = Path(folder) / "trace.npz"
+        half_model = CompressedQwen(model, 0.5)
+        half_model.generate(tokens, 4, None)
+        half_model.cache.save_trace(path)
+        with np.load(path) as trace:
+            assert trace["prefill_scores"].shape == (4, 9)
+            assert trace["prefill_selected"].sum(axis=1).tolist() == [9, 5, 5, 5]
+            assert trace["decode_scores"].shape == (4, 3)
+            assert np.isnan(trace["prefill_scores"][0]).all()
+            assert (trace["prefill_reference_layer"][1] == 0).all()
     print("PASS: full-KV prefill/decode logits, token match, layer counts, and online budget")
 
 

@@ -79,6 +79,10 @@ def main():
         if target.exists():
             with target.open(encoding="utf-8") as stream:
                 completed = {json.loads(line)["index"] for line in stream if line.strip()}
+            if compressor is not None:
+                missing = [i for i in completed if not (output / "scores" / task / f"{i:06d}.npz").exists()]
+                if missing:
+                    raise RuntimeError(f"Missing score traces for completed {task} rows: {missing[:10]}")
         with target.open("a", encoding="utf-8") as stream:
             for index, item in records(args.data_dir, task):
                 if args.limit is not None and index >= args.limit:
@@ -91,6 +95,10 @@ def main():
                     result = generate_full(model, input_ids, max_new, tokenizer.eos_token_id)
                 else:
                     result = compressor.generate(input_ids, max_new, tokenizer.eos_token_id)
+                score_trace = None
+                if compressor is not None:
+                    score_trace = f"scores/{task}/{index:06d}.npz"
+                    compressor.cache.save_trace(output / score_trace)
                 prediction = tokenizer.decode(result.token_ids, skip_special_tokens=True)
                 row = {
                     "index": index, "pred": prediction, "answers": item["answers"],
@@ -105,6 +113,7 @@ def main():
                     "layer_counts_prefill": result.layer_counts_prefill,
                     "layer_counts_final": result.layer_counts_final,
                     "peak_gpu_bytes": result.peak_gpu_bytes,
+                    "score_trace": score_trace,
                 }
                 stream.write(json.dumps(row, ensure_ascii=False) + "\n")
                 stream.flush()

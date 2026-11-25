@@ -76,6 +76,18 @@ peak allocated GPU bytes. `scores.json` uses the official LongBench v1 task
 metrics from the staged checkout. The default tasks are Qasper, HotpotQA,
 2WikiMultihopQA, GovReport, and PassageRetrieval-en.
 
+Compressed runs also save `scores/<task>/<index>.npz` for each example. Its
+`prefill_scores`, `prefill_selected`, and `prefill_reference_layer` arrays
+have shape `[layers, prompt_tokens]`, including scores for skipped tokens.
+The corresponding `decode_*` arrays have shape `[layers, decoded_tokens]` and
+include the score, selection decision, prior reference layer, and evicted
+position for every processed generated token. Layer indices are zero-based;
+`-1` means no prior layer, and Layer 1 scores are `NaN` because it is always
+retained. The last generated token is not decoded if generation stops there,
+so it has no decode trace column. `score_trace` in each JSONL row points to
+its NPZ file. These trace files are saved before the prediction row to keep
+resumed runs consistent.
+
 The runner reserves each task's generation length within the model's 32K
 position limit and truncates overly long prompts in the middle. It uses the
 Qwen chat template, greedy generation, BF16, and one GPU. `--limit` and
