@@ -100,6 +100,11 @@ def main():
                     score_trace = f"scores/{task}/{index:06d}.npz"
                     compressor.cache.save_trace(output / score_trace)
                 prediction = tokenizer.decode(result.token_ids, skip_special_tokens=True)
+                prefill_ratios = [count / input_ids.shape[1]
+                                  for count in result.layer_counts_prefill]
+                processed_tokens = result.layer_counts_final[0]
+                final_ratios = [count / processed_tokens
+                                for count in result.layer_counts_final]
                 row = {
                     "index": index, "pred": prediction, "answers": item["answers"],
                     "all_classes": item["all_classes"], "length": item.get("length"),
@@ -112,6 +117,12 @@ def main():
                     "metadata_bytes_final": result.metadata_bytes_final,
                     "layer_counts_prefill": result.layer_counts_prefill,
                     "layer_counts_final": result.layer_counts_final,
+                    "layer_retention_prefill": prefill_ratios,
+                    "layer_retention_final": final_ratios,
+                    "global_retention_prefill": sum(result.layer_counts_prefill)
+                    / (len(result.layer_counts_prefill) * input_ids.shape[1]),
+                    "global_retention_final": sum(result.layer_counts_final)
+                    / (len(result.layer_counts_final) * processed_tokens),
                     "peak_gpu_bytes": result.peak_gpu_bytes,
                     "score_trace": score_trace,
                 }

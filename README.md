@@ -76,6 +76,17 @@ peak allocated GPU bytes. `scores.json` uses the official LongBench v1 task
 metrics from the staged checkout. The default tasks are Qasper, HotpotQA,
 2WikiMultihopQA, GovReport, and PassageRetrieval-en.
 
+Each prediction also records `layer_retention_prefill`,
+`layer_retention_final`, `global_retention_prefill`, and
+`global_retention_final`. The per-layer ratios divide retained entries by
+tokens processed at that stage; the global ratios divide the sum of retained
+entries by the original full-KV entry count across all layers. With the
+current fixed budget, Layer 1 is 100% and all later layers target the same
+ratio (up to rounding and online selection). For 28 layers, the approximate
+global ratio is `(1 + 27 * later_layer_ratio) / 28`. Compare experiments at
+their **measured global ratio**, particularly against methods with adaptive
+budgets. Adaptive allocation across layers is not implemented in this version.
+
 Compressed runs also save `scores/<task>/<index>.npz` for each example. Its
 `prefill_scores`, `prefill_selected`, and `prefill_reference_layer` arrays
 have shape `[layers, prompt_tokens]`, including scores for skipped tokens.
