@@ -56,15 +56,17 @@ HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 \
 ```
 
 The runner loads Qwen once and completes `r100`, `r070`, `r050`, `r030`,
-`r020`, `r010`, `r005`, then `r001`. Each ratio resumes completed examples after an
-interrupted job. Its output directory contains `config.json`, one prediction
-JSONL per task, `scores/<task>/<index>.npz`, and `scores.json`. The run root
-contains `run_config.json`, `baseline_check.json`, `curve_summary.csv`, and
-`curve_summary.json`. Before the sweep, the script compares up to 16 greedy
-tokens from the unmodified Qwen cache and the custom 100% cache on the first
-LongBench example; it stops if they differ.
-Changing the ratio list, task list, truncation, or generation settings requires
-a new output directory; the resume gate rejects a different protocol.
+`r020`, `r010`, `r005`, then `r001`. A second normal invocation creates a new
+sibling directory with a `-run-2` suffix, leaving the previous run intact.
+Each ratio directory contains one prediction JSONL per task,
+`scores/<task>/<index>.npz`, and `scores.json`. The run root contains
+`baseline_check.json`, `curve_summary.csv`, and `curve_summary.json`.
+No saved configuration is used to block a rerun. Before every sweep, the script
+compares up to 16 greedy tokens from the unmodified Qwen cache and the custom
+100% cache on the first LongBench example; it stops if they differ.
+To continue an interrupted run, pass `--resume --output-dir PATH` using the
+exact directory printed at the start of that run. Use the same model and
+settings when resuming; the script does not compare them with the earlier run.
 
 The smoke run's shortened prompts and outputs are only for validating the
 pipeline. Do not compare its scores with the full curve. The full Qwen7B

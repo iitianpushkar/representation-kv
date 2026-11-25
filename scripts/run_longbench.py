@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resumable Qwen2.5-7B LongBench v1 baseline/compression experiment."""
+"""Qwen2.5-7B LongBench v1 baseline/compression experiment."""
 
 from __future__ import annotations
 
@@ -29,6 +29,8 @@ def parse_args():
     parser.add_argument("--max-new-tokens", type=int, default=None,
                         help="Override LongBench task default; useful for smoke tests")
     parser.add_argument("--limit", type=int, default=None, help="First N examples per task")
+    parser.add_argument("--resume", action="store_true",
+                        help="Skip completed examples in --output-dir")
     return parser.parse_args()
 
 
@@ -55,22 +57,6 @@ def run_condition(args, model=None, tokenizer=None):
     prompts, max_lengths = task_configs(args.longbench_code)
     output = Path(args.output_dir).expanduser().resolve()
     output.mkdir(parents=True, exist_ok=True)
-    config = {
-        "model_path": str(Path(args.model_path).expanduser().resolve()),
-        "longbench_code": str(Path(args.longbench_code).expanduser().resolve()),
-        "data_dir": str(Path(args.data_dir).expanduser().resolve()),
-        "mode": args.mode, "ratio": args.ratio, "tasks": args.tasks,
-        "max_context": args.max_context, "max_new_tokens": args.max_new_tokens,
-        "limit": args.limit, "transformers": __import__("transformers").__version__,
-    }
-    config_path = output / "config.json"
-    if config_path.exists():
-        prior = json.loads(config_path.read_text())
-        if prior != config:
-            raise ValueError(f"Output directory has a different experiment config: {config_path}")
-    else:
-        config_path.write_text(json.dumps(config, indent=2) + "\n")
-
     if model is None or tokenizer is None:
         model, tokenizer = load_model_and_tokenizer(args.model_path)
     max_context = min(args.max_context, model.config.max_position_embeddings)
@@ -83,14 +69,14 @@ def run_condition(args, model=None, tokenizer=None):
             raise ValueError("max-context must exceed the task generation length")
         target = output / f"{task}.jsonl"
         completed = set()
-        if target.exists():
+        if args.resume and target.exists():
             with target.open(encoding="utf-8") as stream:
                 completed = {json.loads(line)["index"] for line in stream if line.strip()}
             if compressor is not None:
                 missing = [i for i in completed if not (output / "scores" / task / f"{i:06d}.npz").exists()]
                 if missing:
                     raise RuntimeError(f"Missing score traces for completed {task} rows: {missing[:10]}")
-        with target.open("a", encoding="utf-8") as stream:
+        with target.open("a" if args.resume else "w", encoding="utf-8") as stream:
             for index, item in records(args.data_dir, task):
                 if args.limit is not None and index >= args.limit:
                     break

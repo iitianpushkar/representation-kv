@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One resumable Qwen2.5/LongBench retention curve, 100% down to 1%."""
+"""One Qwen2.5/LongBench retention curve, 100% down to 1%."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ import argparse
 import csv
 import json
 from pathlib import Path
-import subprocess
 import torch
 
 from representation_kv.longbench import (
@@ -41,6 +40,8 @@ def parse_args():
     parser.add_argument("--max-context", type=int, default=32768)
     parser.add_argument("--max-new-tokens", type=int, default=None)
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--resume", action="store_true",
+                        help="Continue an interrupted run in --output-dir")
     parser.add_argument("--verify-only", action="store_true")
     return parser.parse_args()
 
@@ -91,18 +92,19 @@ def verify_inputs(args):
     return names
 
 
-def revision(path: Path) -> str | None:
-    result = subprocess.run(
-        ["git", "-C", str(path), "rev-parse", "HEAD"],
-        capture_output=True, text=True, check=False,
-    )
-    return result.stdout.strip() if result.returncode == 0 else None
-
-
-def longbench_revision(path: Path) -> str | None:
-    root = official_root(path)
-    vendored_revision = root.parent / "REVISION"
-    return vendored_revision.read_text().strip() if vendored_revision.exists() else revision(root)
+def choose_output_directory(requested: Path, resume: bool) -> Path:
+    if resume:
+        if not requested.is_dir():
+            raise FileNotFoundError(f"No run to resume: {requested}")
+        return requested
+    if not requested.exists() or (requested.is_dir() and not any(requested.iterdir())):
+        return requested
+    number = 2
+    while True:
+        candidate = requested.with_name(f"{requested.name}-run-{number}")
+        if not candidate.exists():
+            return candidate
+        number += 1
 
 
 def write_summary(root: Path, names: list[str], tasks: list[str]):
@@ -145,12 +147,6 @@ def write_summary(root: Path, names: list[str], tasks: list[str]):
 def check_full_baseline(args, root: Path, model, tokenizer):
     """Gate the sweep on a real-model 100%-retention token match."""
     report_path = root / "baseline_check.json"
-    if report_path.exists():
-        prior = json.loads(report_path.read_text())
-        if prior.get("matched") is True:
-            print("100% baseline check already passed")
-            return
-        raise RuntimeError(f"Prior 100% baseline check failed: {report_path}")
     task = args.tasks[0]
     _, maximums = task_configs(args.longbench_code)
     index, item = next(records(args.data_dir, task))
@@ -183,29 +179,9 @@ def main():
         return
     if not torch.cuda.is_available():
         raise RuntimeError("The curve requires one CUDA GPU")
-    output = Path(args.output_dir).expanduser().resolve()
+    output = choose_output_directory(Path(args.output_dir).expanduser().resolve(), args.resume)
     output.mkdir(parents=True, exist_ok=True)
-    manifest_path = Path(args.data_dir).expanduser().resolve() / "manifest.json"
-    dataset_manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else None
-    run_config = {
-        "model_path": str(Path(args.model_path).expanduser().resolve()),
-        "code_revision": revision(Path(__file__).resolve().parents[1]),
-        "longbench_code": str(Path(args.longbench_code).expanduser().resolve()),
-        "longbench_revision": longbench_revision(Path(args.longbench_code)),
-        "data_dir": str(Path(args.data_dir).expanduser().resolve()),
-        "data_archive_sha256": (
-            dataset_manifest.get("archive_sha256") if dataset_manifest else None
-        ),
-        "tasks": args.tasks, "ratios": args.ratios,
-        "max_context": args.max_context, "max_new_tokens": args.max_new_tokens,
-        "limit": args.limit,
-    }
-    config_path = output / "run_config.json"
-    if config_path.exists():
-        if json.loads(config_path.read_text()) != run_config:
-            raise ValueError(f"Output directory has a different curve protocol: {config_path}")
-    else:
-        config_path.write_text(json.dumps(run_config, indent=2) + "\n")
+    print(f"Results: {output}", flush=True)
     model, tokenizer = load_model_and_tokenizer(args.model_path)
     check_full_baseline(args, output, model, tokenizer)
     for ratio, name in zip(args.ratios, names):
