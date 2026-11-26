@@ -45,7 +45,6 @@ output directory:
 
 ```bash
 source .venv/bin/activate
-HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 \
 python -u scripts/run_curve.py \
   --output-dir results/qwen2_5_7b_longbench_smoke \
   --tasks hotpotqa --limit 2 --max-context 4096 --max-new-tokens 16
@@ -55,9 +54,12 @@ Then put these lines in your H100 job for the full curve:
 
 ```bash
 source .venv/bin/activate
-HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 \
 python -u scripts/run_curve.py
 ```
+
+The runner reads the LongBench JSONL files from this checkout and loads the
+model and tokenizer from `models/qwen2.5-7b-instruct/` with
+`local_files_only=True`, so these commands need no Hugging Face offline flags.
 
 The runner loads Qwen once and completes `r100`, `r070`, `r050`, `r030`,
 `r020`, `r010`, `r005`, then `r001`. Running the same command again resumes in
