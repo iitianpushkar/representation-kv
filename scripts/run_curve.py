@@ -92,6 +92,7 @@ def verify_inputs(args):
 
 def write_summary(root: Path, names: list[str], tasks: list[str]):
     rows = []
+    truncations = []
     for name in names:
         condition = root / name
         scores_path = condition / "scores.json"
@@ -105,11 +106,23 @@ def write_summary(root: Path, names: list[str], tasks: list[str]):
             if not examples:
                 continue
             mean = lambda key: sum(float(row[key]) for row in examples) / len(examples)
+            for example in examples:
+                removed = int(example.get("removed_prompt_tokens", 0))
+                if removed:
+                    truncations.append({
+                        "condition": name, "task": task, "index": example["index"],
+                        "original_prompt_tokens": example["original_prompt_tokens"],
+                        "prompt_token_limit": example.get("prompt_token_limit"),
+                        "prompt_tokens": example["prompt_tokens"],
+                        "removed_prompt_tokens": removed,
+                    })
             rows.append({
                 "condition": name,
                 "requested_later_layer_retention": int(name[1:]) / 100,
                 "task": task,
                 "examples": len(examples),
+                "truncated_examples": sum(bool(row.get("removed_prompt_tokens", 0))
+                                          for row in examples),
                 "longbench_score": scores.get(task),
                 "global_retention_prefill": mean("global_retention_prefill"),
                 "global_retention_final": mean("global_retention_final"),
@@ -124,6 +137,13 @@ def write_summary(root: Path, names: list[str], tasks: list[str]):
             writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
             writer.writeheader()
             writer.writerows(rows)
+    with (root / "truncation_report.csv").open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.DictWriter(stream, fieldnames=[
+            "condition", "task", "index", "original_prompt_tokens",
+            "prompt_token_limit", "prompt_tokens", "removed_prompt_tokens",
+        ])
+        writer.writeheader()
+        writer.writerows(truncations)
     (root / "curve_summary.json").write_text(json.dumps(rows, indent=2) + "\n")
 
 
@@ -135,9 +155,10 @@ def check_full_baseline(args, root: Path, model, tokenizer):
     index, item = next(records(args.data_dir, task))
     max_context = min(args.max_context, model.config.max_position_embeddings)
     prompt_limit = max_context - (args.max_new_tokens or maximums[task])
-    ids = encode_prompt(tokenizer, json.loads(
+    ids, original_prompt_tokens = encode_prompt(tokenizer, json.loads(
         (official_root(args.longbench_code) / "config" / "dataset2prompt.json").read_text()
-    )[task].format(**item), prompt_limit).to("cuda:0")
+    )[task].format(**item), prompt_limit)
+    ids = ids.to("cuda:0")
     check_tokens = min(16, args.max_new_tokens or maximums[task])
     full = generate_full(model, ids, check_tokens, tokenizer.eos_token_id)
     compressed = CompressedQwen(model, 1.0).generate(
@@ -146,6 +167,8 @@ def check_full_baseline(args, root: Path, model, tokenizer):
     matched = full.token_ids == compressed.token_ids
     report = {
         "task": task, "index": index, "prompt_tokens": ids.shape[1],
+        "original_prompt_tokens": original_prompt_tokens,
+        "removed_prompt_tokens": original_prompt_tokens - ids.shape[1],
         "compared_generated_tokens": len(full.token_ids), "matched": matched,
     }
     report_path.write_text(json.dumps(report, indent=2) + "\n")

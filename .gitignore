@@ -7,3 +7,4 @@ datasets/**/.hf-cache/
 results/
 logs/
 *.pyc
+.DS_Store

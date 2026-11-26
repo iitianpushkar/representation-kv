@@ -67,6 +67,13 @@ peak allocated GPU bytes. `scores.json` uses the official LongBench v1 task
 metrics from the vendored files. The default tasks are Qasper, HotpotQA,
 2WikiMultihopQA, GovReport, and PassageRetrieval-en.
 
+If a prompt exceeds its token limit, the runner prints a `TRUNCATED` line with
+the task, example index, and number of tokens removed. Each prediction records
+`original_prompt_tokens`, `prompt_tokens`, `prompt_token_limit`,
+`removed_prompt_tokens`, and `prompt_truncated`. The run root has
+`truncation_report.csv` listing every affected example for each ratio;
+`curve_summary.csv` includes the truncated-example count per task and ratio.
+
 Each prediction also records `layer_retention_prefill`,
 `layer_retention_final`, `global_retention_prefill`, and
 `global_retention_final`. The per-layer ratios divide retained entries by

@@ -43,13 +43,14 @@ def encode_prompt(tokenizer, formatted: str, max_prompt_tokens: int):
         [{"role": "user", "content": formatted}], tokenize=True,
         add_generation_prompt=True, return_tensors="pt",
     )
+    original_tokens = ids.shape[1]
     if ids.shape[1] > max_prompt_tokens:
         left = (max_prompt_tokens + 1) // 2
         right = max_prompt_tokens - left
         ids = ids[:, :left] if right == 0 else torch.cat(
             (ids[:, :left], ids[:, -right:]), dim=1
         )
-    return ids
+    return ids, original_tokens
 
 
 def official_metric(root: str | Path, task: str):

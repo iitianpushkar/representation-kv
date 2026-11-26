@@ -61,6 +61,8 @@ the same output directory and skips completed examples.
 Each ratio directory contains one prediction JSONL per task,
 `scores/<task>/<index>.npz`, and `scores.json`. The run root contains
 `baseline_check.json`, `curve_summary.csv`, and `curve_summary.json`.
+`truncation_report.csv` lists every prompt shortened to fit the model context,
+and the curve summary counts affected examples for each task and ratio.
 No saved configuration is used to block a rerun. Before each GPU sweep, the script
 compares up to 16 greedy tokens from the unmodified Qwen cache and the custom
 100% cache on the first LongBench example; it stops if they differ.

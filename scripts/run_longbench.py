@@ -81,7 +81,13 @@ def run_condition(args, model=None, tokenizer=None):
                 if index in completed:
                     continue
                 prompt = prompts[task].format(**item)
-                input_ids = encode_prompt(tokenizer, prompt, max_prompt).to(device)
+                input_ids, original_prompt_tokens = encode_prompt(tokenizer, prompt, max_prompt)
+                input_ids = input_ids.to(device)
+                removed_prompt_tokens = original_prompt_tokens - input_ids.shape[1]
+                if removed_prompt_tokens:
+                    print(f"TRUNCATED {task} {index}: {original_prompt_tokens} -> "
+                          f"{input_ids.shape[1]} prompt tokens "
+                          f"({removed_prompt_tokens} removed)", flush=True)
                 if compressor is None:
                     result = generate_full(model, input_ids, max_new, tokenizer.eos_token_id)
                 else:
@@ -100,6 +106,10 @@ def run_condition(args, model=None, tokenizer=None):
                     "index": index, "pred": prediction, "answers": item["answers"],
                     "all_classes": item["all_classes"], "length": item.get("length"),
                     "prompt_tokens": input_ids.shape[1],
+                    "original_prompt_tokens": original_prompt_tokens,
+                    "prompt_token_limit": max_prompt,
+                    "removed_prompt_tokens": removed_prompt_tokens,
+                    "prompt_truncated": bool(removed_prompt_tokens),
                     "generated_tokens": len(result.token_ids),
                     "prefill_seconds": result.prefill_seconds,
                     "decode_seconds": result.decode_seconds,
