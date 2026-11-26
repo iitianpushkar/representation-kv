@@ -19,6 +19,13 @@ TASK_LABELS = {
     "gov_report": "GovReport",
     "passage_retrieval_en": "PassageRetrieval-en",
 }
+TASK_METRICS = {
+    "qasper": "F1",
+    "hotpotqa": "F1",
+    "2wikimqa": "F1",
+    "gov_report": "ROUGE-L",
+    "passage_retrieval_en": "Accuracy",
+}
 CHARTS = (
     ("quality_vs_retention.png", "global_retention_final", "longbench_score",
      "LongBench quality vs KV retention", "Measured global KV retention (%)", "LongBench score"),
@@ -82,6 +89,50 @@ def plot_summary(output_dir: str | Path) -> list[Path]:
         path = root / filename
         temporary = root / f".{filename}"
         fig.savefig(temporary, dpi=160)
+        plt.close(fig)
+        temporary.replace(path)
+        created.append(path)
+        log.info("PLOT_WRITTEN path=%s", path)
+    conditions = sorted(
+        {row["condition"] for row in rows if row.get("longbench_score") is not None},
+        key=lambda name: int(name[1:]), reverse=True,
+    )
+    tasks = [task for task in TASK_LABELS if any(
+        row["task"] == task and row.get("longbench_score") is not None for row in rows
+    )]
+    if conditions and tasks:
+        fig, ax = plt.subplots(figsize=(11, 5.5))
+        centers = list(range(len(conditions)))
+        width = 0.8 / len(tasks)
+        scores = {
+            (row["condition"], row["task"]): float(row["longbench_score"])
+            for row in rows if row.get("longbench_score") is not None
+        }
+        for task_index, task in enumerate(tasks):
+            positions = []
+            values = []
+            for condition_index, condition in enumerate(conditions):
+                value = scores.get((condition, task))
+                if value is not None:
+                    positions.append(condition_index + (task_index - (len(tasks) - 1) / 2) * width)
+                    values.append(value)
+            ax.bar(positions, values, width=width,
+                   label=f"{TASK_LABELS[task]} ({TASK_METRICS[task]})")
+        ax.set(
+            title="LongBench task metrics by requested KV retention",
+            xlabel="Retention in layers after Layer 1",
+            ylabel="LongBench score (0–100)",
+        )
+        ax.set_xticks(centers, [f"{int(name[1:])}%" for name in conditions])
+        ax.set_xlim(-0.6, len(conditions) - 0.4)
+        ax.set_ylim(0, 100)
+        ax.grid(axis="y", alpha=0.25)
+        ax.set_axisbelow(True)
+        ax.legend(loc="center left", bbox_to_anchor=(1.01, 0.5), fontsize=8)
+        fig.tight_layout()
+        path = root / "metric_comparison_by_ratio.png"
+        temporary = root / ".metric_comparison_by_ratio.png"
+        fig.savefig(temporary, dpi=160, bbox_inches="tight")
         plt.close(fig)
         temporary.replace(path)
         created.append(path)
