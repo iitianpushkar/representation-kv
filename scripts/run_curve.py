@@ -7,12 +7,14 @@ import argparse
 import csv
 import json
 from pathlib import Path
+import time
 import torch
 
 from representation_kv.longbench import (
     DEFAULT_TASKS, encode_prompt, official_root, records, task_configs,
 )
 from representation_kv.qwen import CompressedQwen, generate_full
+from representation_kv.progress import configure_logging, log
 from run_longbench import load_model_and_tokenizer, run_condition
 from score_longbench import score_condition
 
@@ -34,7 +36,7 @@ def parse_args():
     parser.add_argument("--longbench-code", default=str(REPO_ROOT / "third_party/LongBench"))
     parser.add_argument("--data-dir", default=str(REPO_ROOT / "datasets/longbench-v1"))
     parser.add_argument("--output-dir", default=str(REPO_ROOT / "results/qwen2_5_7b_longbench_retention_curve"),
-                        help="Unique directory for the entire curve")
+                        help="Directory for the curve; reruns resume completed examples")
     parser.add_argument("--tasks", nargs="+", default=list(DEFAULT_TASKS), choices=DEFAULT_TASKS)
     parser.add_argument("--ratios", nargs="+", type=float, default=list(DEFAULT_RATIOS))
     parser.add_argument("--max-context", type=int, default=32768)
@@ -84,9 +86,10 @@ def verify_inputs(args):
             first = next((json.loads(line) for line in stream if line.strip()), None)
         if first is None or not {"context", "input", "answers", "all_classes"} <= first.keys():
             raise ValueError(f"Invalid LongBench task file: {source}")
-        print(f"Ready: {task}: {source}")
-    print("Ratios:", ", ".join(names))
-    print("Model:", model_path)
+        log.info("INPUT_READY task=%s data=%s max_new_tokens=%d", task, source,
+                 args.max_new_tokens or maximums[task])
+    log.info("PREFLIGHT_DONE model=%s ratios=%s tasks=%s", model_path,
+             ",".join(names), ",".join(args.tasks))
     return names
 
 
@@ -145,6 +148,8 @@ def write_summary(root: Path, names: list[str], tasks: list[str]):
         writer.writeheader()
         writer.writerows(truncations)
     (root / "curve_summary.json").write_text(json.dumps(rows, indent=2) + "\n")
+    log.info("SUMMARY_WRITTEN rows=%d truncations=%d path=%s", len(rows),
+             len(truncations), root / "curve_summary.csv")
 
 
 def check_full_baseline(args, root: Path, model, tokenizer):
@@ -160,6 +165,9 @@ def check_full_baseline(args, root: Path, model, tokenizer):
     )[task].format(**item), prompt_limit)
     ids = ids.to("cuda:0")
     check_tokens = min(16, args.max_new_tokens or maximums[task])
+    log.info("BASELINE_START task=%s index=%d prompt_tokens=%d compare_tokens=%d",
+             task, index, ids.shape[1], check_tokens)
+    baseline_start = time.perf_counter()
     full = generate_full(model, ids, check_tokens, tokenizer.eos_token_id)
     compressed = CompressedQwen(model, 1.0).generate(
         ids, check_tokens, tokenizer.eos_token_id
@@ -174,32 +182,50 @@ def check_full_baseline(args, root: Path, model, tokenizer):
     report_path.write_text(json.dumps(report, indent=2) + "\n")
     if not matched:
         raise RuntimeError(f"100% cache output differs from full Qwen: {report_path}")
-    print(f"100% baseline check passed on {task} example {index}", flush=True)
+    log.info("BASELINE_DONE matched=true task=%s index=%d seconds=%.2f report=%s",
+             task, index, time.perf_counter() - baseline_start, report_path)
 
 
 def main():
     args = parse_args()
+    output = Path(args.output_dir).expanduser().resolve()
+    configure_logging(None if args.verify_only else output / "run.log")
+    run_start = time.perf_counter()
+    log.info("RUN_START verify_only=%s output=%s", args.verify_only, args.output_dir)
+    log.info("PREFLIGHT_START")
     names = verify_inputs(args)
     if args.verify_only:
-        print("Preflight passed; no GPU model loaded and no output written.")
+        log.info("VERIFY_ONLY_DONE no_gpu_model_loaded=true no_results_written=true")
         return
     if not torch.cuda.is_available():
         raise RuntimeError("The curve requires one CUDA GPU")
-    output = Path(args.output_dir).expanduser().resolve()
     output.mkdir(parents=True, exist_ok=True)
-    print(f"Results: {output}", flush=True)
+    log.info("RESULTS_READY output=%s log=%s", output, output / "run.log")
+    log.info("MODEL_LOAD_START path=%s", args.model_path)
+    model_start = time.perf_counter()
     model, tokenizer = load_model_and_tokenizer(args.model_path)
+    log.info("MODEL_LOAD_DONE seconds=%.2f device=cuda:0", time.perf_counter() - model_start)
     check_full_baseline(args, output, model, tokenizer)
-    for ratio, name in zip(args.ratios, names):
-        print(f"Starting {name} ({ratio:.0%} later-layer retention)", flush=True)
+    for condition_index, (ratio, name) in enumerate(zip(args.ratios, names), start=1):
+        condition_start = time.perf_counter()
+        log.info("CONDITION_START name=%s step=%d/%d retention=%.0f%%", name,
+                 condition_index, len(names), ratio * 100)
         args.mode = "compressed"
         args.ratio = ratio
         args.output_dir = str(output / name)
         run_condition(args, model=model, tokenizer=tokenizer)
+        log.info("SCORING_START condition=%s", name)
         score_condition(args.longbench_code, args.output_dir, args.tasks)
         write_summary(output, names, args.tasks)
-    print(f"Curve complete: {output / 'curve_summary.csv'}")
+        log.info("CONDITION_DONE name=%s seconds=%.2f", name,
+                 time.perf_counter() - condition_start)
+    log.info("RUN_DONE seconds=%.2f summary=%s", time.perf_counter() - run_start,
+             output / "curve_summary.csv")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        log.exception("RUN_FAILED")
+        raise

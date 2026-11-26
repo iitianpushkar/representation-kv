@@ -61,6 +61,14 @@ and no committed Slurm job file.
 
 ## Outputs
 
+The curve writes timestamped progress to stdout and appends the same messages
+to `results/qwen2_5_7b_longbench_retention_curve/run.log` (or the selected
+`--output-dir`). The log shows input checks, model loading, the baseline check,
+ratio and task starts and finishes, each example's start, prefill completion,
+generation result, scoring, summary writes, and failures. It does not log
+individual generated tokens. Reruns append to the same log while completed
+examples are skipped.
+
 Each task has a JSONL file with predictions, references, token counts,
 prefill/decode time, KV bytes, metadata bytes, layer retention counts, and
 peak allocated GPU bytes. `scores.json` uses the official LongBench v1 task

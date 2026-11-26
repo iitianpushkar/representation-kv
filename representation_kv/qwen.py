@@ -118,7 +118,8 @@ class CompressedQwen:
                 module.forward = original
 
     @torch.inference_mode()
-    def generate(self, input_ids: torch.Tensor, max_new_tokens: int, eos_token_id: int | None):
+    def generate(self, input_ids: torch.Tensor, max_new_tokens: int, eos_token_id: int | None,
+                 progress=None):
         if input_ids.ndim != 2 or input_ids.shape[0] != 1:
             raise ValueError("input_ids must have shape [1, T]")
         if input_ids.shape[1] < 1 or max_new_tokens < 1:
@@ -143,6 +144,9 @@ class CompressedQwen:
             self.cache.finish_token_pass()
             kv_bytes_prefill = self.cache.kv_bytes()
             counts_prefill = self.cache.counts()
+            if progress is not None:
+                progress("prefill_done", seconds=prefill_seconds,
+                         kv_bytes=kv_bytes_prefill)
 
             tokens: list[int] = []
             next_id = result.logits[:, -1].argmax(dim=-1, keepdim=True)
@@ -180,7 +184,8 @@ class CompressedQwen:
 
 
 @torch.inference_mode()
-def generate_full(model, input_ids: torch.Tensor, max_new_tokens: int, eos_token_id: int | None):
+def generate_full(model, input_ids: torch.Tensor, max_new_tokens: int,
+                  eos_token_id: int | None, progress=None):
     """Same greedy loop with the unmodified Qwen DynamicCache baseline."""
     device = input_ids.device
     if device.type == "cuda":
@@ -193,6 +198,9 @@ def generate_full(model, input_ids: torch.Tensor, max_new_tokens: int, eos_token
     cache = result.past_key_values
     kv_bytes_prefill = _cache_bytes(cache)
     counts_prefill = [layer.keys.shape[2] for layer in cache.layers]
+    if progress is not None:
+        progress("prefill_done", seconds=prefill_seconds,
+                 kv_bytes=kv_bytes_prefill)
     next_id = result.logits[:, -1].argmax(dim=-1, keepdim=True)
     tokens: list[int] = []
     decode_seconds = 0.0

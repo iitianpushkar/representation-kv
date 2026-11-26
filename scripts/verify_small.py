@@ -56,7 +56,13 @@ def main():
     assert full.token_ids == exact.token_ids, (full.token_ids, exact.token_ids)
     assert exact.layer_counts_prefill == [9] * 4
     assert exact.layer_counts_final == [12] * 4
-    half = CompressedQwen(model, 0.5).generate(tokens, 4, None)
+    progress_events = []
+    half = CompressedQwen(model, 0.5).generate(
+        tokens, 4, None,
+        progress=lambda stage, **details: progress_events.append((stage, details)),
+    )
+    assert len(progress_events) == 1 and progress_events[0][0] == "prefill_done"
+    assert progress_events[0][1]["kv_bytes"] == half.kv_bytes_prefill
     assert half.layer_counts_prefill == [9, 5, 5, 5], half.layer_counts_prefill
     assert half.layer_counts_final == [12, 6, 6, 6], half.layer_counts_final
     assert half.kv_bytes_prefill < full.kv_bytes_prefill

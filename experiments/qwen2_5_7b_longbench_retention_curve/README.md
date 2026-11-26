@@ -57,7 +57,9 @@ HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 \
 
 The runner loads Qwen once and completes `r100`, `r070`, `r050`, `r030`,
 `r020`, `r010`, `r005`, then `r001`. Running the same command again resumes in
-the same output directory and skips completed examples.
+the same output directory and skips completed examples. Watch the job's stdout
+or the run root's `run.log` for timestamped progress and errors. Logging is at
+the run, condition, task, and example level, with no per-token messages.
 Each ratio directory contains one prediction JSONL per task,
 `scores/<task>/<index>.npz`, and `scores.json`. The run root contains
 `baseline_check.json`, `curve_summary.csv`, and `curve_summary.json`.

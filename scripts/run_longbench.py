@@ -6,11 +6,13 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import time
 
 import torch
 from transformers import AutoTokenizer, Qwen2ForCausalLM
 
 from representation_kv.longbench import DEFAULT_TASKS, encode_prompt, records, task_configs
+from representation_kv.progress import configure_logging, log
 from representation_kv.qwen import CompressedQwen, generate_full
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -55,12 +57,17 @@ def run_condition(args, model=None, tokenizer=None):
     prompts, max_lengths = task_configs(args.longbench_code)
     output = Path(args.output_dir).expanduser().resolve()
     output.mkdir(parents=True, exist_ok=True)
+    configure_logging(output / "run.log")
     if model is None or tokenizer is None:
+        log.info("MODEL_LOAD_START path=%s", args.model_path)
+        load_start = time.perf_counter()
         model, tokenizer = load_model_and_tokenizer(args.model_path)
+        log.info("MODEL_LOAD_DONE seconds=%.2f", time.perf_counter() - load_start)
     max_context = min(args.max_context, model.config.max_position_embeddings)
     compressor = CompressedQwen(model, args.ratio) if args.mode == "compressed" else None
 
     for task in args.tasks:
+        task_start = time.perf_counter()
         max_new = args.max_new_tokens or max_lengths[task]
         max_prompt = max_context - max_new
         if max_prompt < 1:
@@ -74,24 +81,43 @@ def run_condition(args, model=None, tokenizer=None):
                 missing = [i for i in completed if not (output / "scores" / task / f"{i:06d}.npz").exists()]
                 if missing:
                     raise RuntimeError(f"Missing score traces for completed {task} rows: {missing[:10]}")
+        total = sum(1 for _ in records(args.data_dir, task))
+        if args.limit is not None:
+            total = min(total, args.limit)
+        already_done = sum(index < total for index in completed)
+        log.info("TASK_START task=%s examples=%d completed=%d remaining=%d "
+                 "prompt_limit=%d max_new_tokens=%d", task, total, already_done,
+                 total - already_done, max_prompt, max_new)
+        processed = 0
         with target.open("a", encoding="utf-8") as stream:
             for index, item in records(args.data_dir, task):
                 if args.limit is not None and index >= args.limit:
                     break
                 if index in completed:
                     continue
+                log.info("EXAMPLE_START task=%s index=%d progress=%d/%d source_words=%s",
+                         task, index, index + 1, total, item.get("length"))
                 prompt = prompts[task].format(**item)
                 input_ids, original_prompt_tokens = encode_prompt(tokenizer, prompt, max_prompt)
                 input_ids = input_ids.to(device)
                 removed_prompt_tokens = original_prompt_tokens - input_ids.shape[1]
                 if removed_prompt_tokens:
-                    print(f"TRUNCATED {task} {index}: {original_prompt_tokens} -> "
-                          f"{input_ids.shape[1]} prompt tokens "
-                          f"({removed_prompt_tokens} removed)", flush=True)
+                    log.warning("PROMPT_TRUNCATED task=%s index=%d original=%d "
+                                "retained=%d removed=%d", task, index,
+                                original_prompt_tokens, input_ids.shape[1],
+                                removed_prompt_tokens)
+                def on_progress(stage, **details):
+                    if stage == "prefill_done":
+                        log.info("PREFILL_DONE task=%s index=%d prompt_tokens=%d "
+                                 "seconds=%.2f kv_mib=%.1f", task, index,
+                                 input_ids.shape[1], details["seconds"],
+                                 details["kv_bytes"] / 2**20)
                 if compressor is None:
-                    result = generate_full(model, input_ids, max_new, tokenizer.eos_token_id)
+                    result = generate_full(model, input_ids, max_new,
+                                           tokenizer.eos_token_id, progress=on_progress)
                 else:
-                    result = compressor.generate(input_ids, max_new, tokenizer.eos_token_id)
+                    result = compressor.generate(input_ids, max_new,
+                                                 tokenizer.eos_token_id, progress=on_progress)
                 score_trace = None
                 if compressor is not None:
                     score_trace = f"scores/{task}/{index:06d}.npz"
@@ -129,8 +155,15 @@ def run_condition(args, model=None, tokenizer=None):
                 }
                 stream.write(json.dumps(row, ensure_ascii=False) + "\n")
                 stream.flush()
-                print(f"{task} {index}: prompt={input_ids.shape[1]} generated={len(result.token_ids)} "
-                      f"KV={result.kv_bytes_final / 2**20:.1f} MiB", flush=True)
+                processed += 1
+                log.info("EXAMPLE_DONE task=%s index=%d generated=%d prefill_s=%.2f "
+                         "decode_s=%.2f kv_mib=%.1f completed=%d/%d", task, index,
+                         len(result.token_ids), result.prefill_seconds,
+                         result.decode_seconds, result.kv_bytes_final / 2**20,
+                         already_done + processed, total)
+        log.info("TASK_DONE task=%s new_examples=%d completed=%d/%d seconds=%.2f",
+                 task, processed, already_done + processed, total,
+                 time.perf_counter() - task_start)
 
 
 def main():
@@ -138,4 +171,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        log.exception("CONDITION_FAILED")
+        raise
