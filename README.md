@@ -69,6 +69,14 @@ generation result, scoring, summary writes, and failures. It does not log
 individual generated tokens. Reruns append to the same log while completed
 examples are skipped.
 
+After each completed ratio, the run root updates five PNG charts:
+`quality_vs_retention.png`, `quality_vs_kv_memory.png`,
+`kv_memory_vs_retention.png`, `decode_time_vs_retention.png`, and
+`prefill_time_vs_retention.png`. They show one line per task and use measured
+global KV retention. Time charts show mean seconds per example; answer lengths
+can vary. To regenerate the PNGs from an existing summary, run
+`.venv/bin/python scripts/plot_results.py` (or pass `--output-dir`).
+
 Each task has a JSONL file with predictions, references, token counts,
 prefill/decode time, KV bytes, metadata bytes, layer retention counts, and
 peak allocated GPU bytes. `scores.json` uses the official LongBench v1 task

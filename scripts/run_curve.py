@@ -15,6 +15,7 @@ from representation_kv.longbench import (
 )
 from representation_kv.qwen import CompressedQwen, generate_full
 from representation_kv.progress import configure_logging, log
+from plot_results import plot_summary
 from run_longbench import load_model_and_tokenizer, run_condition
 from score_longbench import score_condition
 
@@ -217,6 +218,11 @@ def main():
         log.info("SCORING_START condition=%s", name)
         score_condition(args.longbench_code, args.output_dir, args.tasks)
         write_summary(output, names, args.tasks)
+        try:
+            plot_summary(output)
+        except Exception:
+            log.exception("PLOTS_FAILED condition=%s summary=%s", name,
+                          output / "curve_summary.json")
         log.info("CONDITION_DONE name=%s seconds=%.2f", name,
                  time.perf_counter() - condition_start)
     log.info("RUN_DONE seconds=%.2f summary=%s", time.perf_counter() - run_start,
