@@ -36,11 +36,12 @@ around that command.
 git clone https://github.com/iitianpushkar/representation-kv.git representation-kv
 cd representation-kv
 python3 -m venv .venv
-.venv/bin/pip install --upgrade pip
-.venv/bin/pip install -e .
-.venv/bin/hf download Qwen/Qwen2.5-7B-Instruct --local-dir models/qwen2.5-7b-instruct
-.venv/bin/python scripts/verify_small.py
-.venv/bin/python scripts/run_curve.py --verify-only
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e .
+hf download Qwen/Qwen2.5-7B-Instruct --local-dir models/qwen2.5-7b-instruct
+python scripts/verify_small.py
+python scripts/run_curve.py --verify-only
 ```
 
 The checkpoint is downloaded inside `models/`, which is ignored by Git because
@@ -77,7 +78,8 @@ for each requested ratio. The other charts are `quality_vs_retention.png`,
 `prefill_time_vs_retention.png`. They show one line per task and use measured
 global KV retention. Time charts show mean seconds per example; answer lengths
 can vary. To regenerate the PNGs from an existing summary, run
-`.venv/bin/python scripts/plot_results.py` (or pass `--output-dir`).
+`python scripts/plot_results.py` (or pass `--output-dir`), with the virtual
+environment activated.
 
 Each task has a JSONL file with predictions, references, token counts,
 prefill/decode time, KV bytes, metadata bytes, layer retention counts, and

@@ -31,10 +31,12 @@ can use the token score traces from this run.
 From the repository checkout on a networked login node, download the model as
 described in the [root README](../../README.md#rorqual-setup). The LongBench
 files are already present. Check the inputs without loading a GPU model or
-writing results:
+writing results. Activate the virtual environment in each new shell, including
+inside a Rorqual job:
 
 ```bash
-.venv/bin/python scripts/run_curve.py \
+source .venv/bin/activate
+python scripts/run_curve.py \
   --verify-only
 ```
 
@@ -42,17 +44,19 @@ Inside an H100 allocation, run a two-example smoke curve in a **separate**
 output directory:
 
 ```bash
+source .venv/bin/activate
 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 \
-.venv/bin/python -u scripts/run_curve.py \
+python -u scripts/run_curve.py \
   --output-dir results/qwen2_5_7b_longbench_smoke \
   --tasks hotpotqa --limit 2 --max-context 4096 --max-new-tokens 16
 ```
 
-Then put this **one command** in your H100 job for the full curve:
+Then put these lines in your H100 job for the full curve:
 
 ```bash
+source .venv/bin/activate
 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 \
-.venv/bin/python -u scripts/run_curve.py
+python -u scripts/run_curve.py
 ```
 
 The runner loads Qwen once and completes `r100`, `r070`, `r050`, `r030`,
